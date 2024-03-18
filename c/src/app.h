@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <sys/socket.h>
 
 #include <errno.h>
@@ -6,7 +7,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#define PORT 8080
 #define BUFFER_SIZE 1024
 
 struct SockConn {
@@ -23,9 +23,19 @@ struct Connection {
 };
 
 int main(void);
-int create_socket(struct Connection *conn);
-int server_listen(int sockfd);
-void serve(struct Connection *conn);
-void listen_and_serve(struct Connection *conn);
 
-struct Server {};
+struct Server {
+  int domain;
+  int service;
+  int protocol;
+  u_long interface;
+  int port;
+  int backlog;
+  struct sockaddr_in address;
+  int socket;
+  void (*launch)(struct Server *server);
+};
+
+struct Server server_constructor(int domain, int service, int protocol,
+                                 u_long interface, int port, int backlog,
+                                 void (*launch)(struct Server *server));

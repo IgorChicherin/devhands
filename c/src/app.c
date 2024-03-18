@@ -1,5 +1,7 @@
 #include "app.h"
 #include <netinet/in.h>
+#include <stdlib.h>
+#include <sys/socket.h>
 
 char buffer[BUFFER_SIZE];
 char resp[] = "HTTP/1.0 200 OK\r\n"
@@ -7,58 +9,59 @@ char resp[] = "HTTP/1.0 200 OK\r\n"
               "Content-type: text/html\r\n\r\n"
               "<html>hello, world</html>\r\n";
 
-int create_socket(struct Connection *conn) {
+struct Server server_constructor(int domain, int service, int protocol,
+                                 u_long interface, int port, int backlog,
+                                 void (*launch)(struct Server *server)) {
+  struct Server server;
+
+  server.domain = domain;
+  server.service = service;
+  server.protocol = protocol;
+  server.interface = interface;
+  server.port = port;
+  server.backlog = backlog;
+
+  // binding address
+  server.address.sin_family = domain;
+  server.address.sin_addr.s_addr = htonl(interface);
+  server.address.sin_port = htons(port);
+
   // Create a socket
-  conn->sockfd = socket(AF_INET, SOCK_STREAM, 0);
+  server.socket = socket(domain, service, protocol);
 
-  if (conn->sockfd == -1) {
-    perror("webserver (socket)");
+  if (server.socket == 0) {
+    perror("Failed to create socket");
+    exit(1);
   }
 
-  printf("socket created successfully\n");
-  // Create the address to bind the socket to
+  // Binding socket with address
+  int res = bind(server.socket, (struct sockaddr *)&server.address,
+                 sizeof(server.address));
 
-  struct sockaddr_in soc_host = {};
-  struct SockConn host = {0, soc_host};
-  host.len = sizeof(host.addr);
-  host.addr.sin_family = AF_INET;
-  host.addr.sin_port = htons(PORT);
-  host.addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
-  // Create client address
-
-  struct sockaddr_in soc_client = {};
-  struct SockConn client = {0, soc_client};
-  client.len = sizeof(client.addr);
-
-  // Bind the socket to the address
-  if (bind(conn->sockfd, (struct sockaddr *)&host.addr, host.len) != 0) {
-    perror("webserver (bind)");
-    return -1;
+  if (res < 0) {
+    perror("Failed to bind socket");
+    exit(1);
   }
-  printf("socket successfully bound to address\n");
 
-  conn->host_sock = host;
-  conn->client_sock = client;
-  return 0;
+  // Listen connections
+  res = listen(server.socket, server.backlog);
+
+  if (res < 0) {
+    perror("Failed to listen to socket");
+    exit(1);
+  }
+
+  server.launch = launch;
+
+  return server;
 }
 
-int server_listen(int sockfd) {
-  // Listen for incoming connections
-  if (listen(sockfd, SOMAXCONN) != 0) {
-    perror("webserver (listen)");
-    return 1;
-  }
-  printf("server listening for connections\n");
-  return 0;
-}
-
-void serve(struct Connection *conn) {
+void serve(struct Server *server) {
   for (;;) {
     // Accept incoming connections
-    struct SockConn host = conn->host_sock;
-    int newsockfd = accept(conn->sockfd, (struct sockaddr *)&host.addr,
-                           (socklen_t *)&host.len);
+    int host_len = sizeof(server->address);
+    int newsockfd = accept(server->socket, (struct sockaddr *)&server->address,
+                           (socklen_t *)&host_len);
 
     if (newsockfd < 0) {
       perror("webserver (accept)");
@@ -67,10 +70,10 @@ void serve(struct Connection *conn) {
     printf("connection accepted\n");
 
     // Get client address
-
-    struct SockConn client = conn->client_sock;
-    int sockn = getsockname(newsockfd, (struct sockaddr *)&client.addr,
-                            (socklen_t *)&client.len);
+    struct sockaddr_in client;
+    int client_len = sizeof(client);
+    int sockn = getsockname(newsockfd, (struct sockaddr *)&client,
+                            (socklen_t *)&client_len);
 
     if (sockn < 0) {
       perror("webserver (getsockname)");
@@ -88,8 +91,8 @@ void serve(struct Connection *conn) {
     char method[BUFFER_SIZE], uri[BUFFER_SIZE], version[BUFFER_SIZE];
     sscanf(buffer, "%s %s %s", method, uri, version);
 
-    printf("[%s:%u] %s %s %s\n", inet_ntoa(client.addr.sin_addr),
-           ntohs(client.addr.sin_port), method, version, uri);
+    printf("[%s:%u] %s %s %s\n", inet_ntoa(client.sin_addr),
+           ntohs(client.sin_port), method, version, uri);
 
     // Write to the socket
     int valwrite = write(newsockfd, resp, strlen(resp));
@@ -102,13 +105,8 @@ void serve(struct Connection *conn) {
   }
 }
 
-void listen_and_serve(struct Connection *conn) {
-  server_listen(conn->sockfd);
-  serve(conn);
-}
-
 int main() {
-  struct Connection conn;
-  create_socket(&conn);
-  listen_and_serve(&conn);
+  struct Server server = server_constructor(AF_INET, SOCK_STREAM, IPPROTO_TCP,
+                                            INADDR_ANY, 8080, 1, serve);
+  server.launch(&server);
 }
