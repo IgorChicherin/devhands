@@ -13,7 +13,6 @@
 #define BUFFER_SIZE 4096
 #endif // !BUFFER_SIZE
 
-
 typedef struct Server {
   int domain;
   int service;
@@ -24,7 +23,7 @@ typedef struct Server {
   struct sockaddr_in address;
   int socket;
   void (*launch)(struct Server *server);
-  View views[BUFFER_SIZE];
+  View views[255];
 } Server;
 
 Server server_constructor(int domain, int service, int protocol,

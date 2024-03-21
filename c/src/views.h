@@ -10,6 +10,7 @@
 typedef struct Request {
   char path[BUFFER_SIZE];
   char method[25];
+  int sockfd;
 } Request;
 
 typedef struct Response {
