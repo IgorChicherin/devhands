@@ -1,13 +1,15 @@
 #include "server.h"
 #include <netinet/in.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 char buffer[BUFFER_SIZE];
 
 Server server_constructor(int domain, int service, int protocol,
                           u_long interface, int port, int backlog,
-                          void (*launch)(Server *server), View *views) {
+                          void (*launch)(Server *server), ViewsList *views) {
   Server server;
 
   server.domain = domain;
@@ -48,7 +50,8 @@ Server server_constructor(int domain, int service, int protocol,
   }
 
   server.launch = launch;
-  memcpy(&server.views, views, sizeof(View) * 1);
+
+  memcpy(&server.views, views, sizeof(ViewsList));
   return server;
 }
 
@@ -91,25 +94,35 @@ void serve(Server *server) {
     printf("%s:%u [%s] %s %s\n", inet_ntoa(client.sin_addr),
            ntohs(client.sin_port), req.method, version, req.path);
 
-    for (int i = 0; i < 1; i++) {
-      View view = server->views[i];
+    bool view_found = false;
+    for (int i = 0; i < server->views.views_count && !view_found; i++) {
+      View view = server->views.views[i];
 
       if (strcmp(req.path, view.path) == 0) {
-        view.handlers[0].func(&req);
-        printf("served\n");
-      } else {
-        char resp_404[] = "HTTP/1.1 404 Not Found\r\n"
-                          "Server: webserver-c\r\n"
-                          "Content-type: text/html\r\n\r\n"
-                          "<html>Page not found</html>\r\n";
-        int valwrite = write(req.sockfd, resp_404, strlen(resp_404));
-        printf("404\n");
-        if (valwrite < 0) {
-          perror("webserver (write)");
+
+        for (int j = 0; j < view.handlers_count; j++) {
+          Handler handler = view.handlers[j];
+
+          if (strcmp(req.method, handler.method) == 0) {
+            view_found = true;
+            handler.func(&req);
+            close(req.sockfd);
+            break;
+          }
         }
       }
     }
+    if (!view_found) {
+      char resp_404[] = "HTTP/1.1 404 Not Found\r\n"
+                        "Server: webserver-c\r\n"
+                        "Content-type: text/html\r\n\r\n"
+                        "<html>Page not found</html>\r\n";
 
-    close(newsockfd);
+      int valwrite = write(req.sockfd, resp_404, strlen(resp_404));
+      if (valwrite < 0) {
+        perror("webserver (write)");
+      }
+      close(req.sockfd);
+    }
   }
 }

@@ -1,11 +1,9 @@
-// char resp[] = "HTTP/1.0 200 OK\r\n"
-//               "Server: webserver-c\r\n"
-//               "Content-type: text/html\r\n\r\n"
-//               "<html>hello, world</html>\r\n";
-
 #ifndef BUFFER_SIZE
 #define BUFFER_SIZE 4096
 #endif // !BUFFER_SIZE
+
+#ifndef VIEWS_H
+#define VIEWS_H
 
 typedef struct Request {
   char path[BUFFER_SIZE];
@@ -13,30 +11,40 @@ typedef struct Request {
   int sockfd;
 } Request;
 
+typedef void (*HandlerFunc)(Request *request);
+
 typedef struct Response {
   char path[BUFFER_SIZE];
   char method[25];
+  int status_code;
+  int sockfd;
 } Response;
 
-typedef void (*HandlerFunc)(Request *request);
-
 typedef struct Handler {
-  char method[25];
+  char *method;
   HandlerFunc func;
 } Handler;
 
 typedef struct View {
   char path[BUFFER_SIZE];
-  char template_name[255];
+  int handlers_count;
   Handler handlers[255];
 } View;
 
-Response make_response(const char *path, const char *method);
+typedef struct ViewsList {
+  int views_count;
+  View views[255];
+} ViewsList;
 
-char *render_template(Response resp, const char *template_name);
+Response make_response(const char *path, int status_code, const char *method,
+                       int sockfd);
 
-char *render_string(Response resp, const char *html_string);
+void register_view(ViewsList *views, View view);
 
-// void (*create_handler(HandlerFunc))(Request *);
+void add_handler(View *view, char *method, HandlerFunc func);
 
-// void create_handler(HandlerFunc func);
+void render_string(Response resp, const char *html_string, char *data);
+
+void send_response(int sockfd, const char *data);
+
+#endif // !VIEWS_H

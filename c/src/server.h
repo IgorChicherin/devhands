@@ -23,9 +23,10 @@ typedef struct Server {
   struct sockaddr_in address;
   int socket;
   void (*launch)(struct Server *server);
-  View views[255];
+  int views_count;
+  ViewsList views;
 } Server;
 
 Server server_constructor(int domain, int service, int protocol,
                           u_long interface, int port, int backlog,
-                          void (*launch)(Server *server), View *views);
+                          void (*launch)(Server *server), ViewsList *views);
