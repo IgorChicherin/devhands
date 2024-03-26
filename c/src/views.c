@@ -30,6 +30,19 @@ void render_string(Response resp, const char *html_string, char *data) {
           resp.status_code, html_string);
 }
 
+char *parse_url_path(char *path) {
+  char *splited = NULL;
+
+  splited = strtok(path, "/");
+
+  if (splited != NULL) {
+    return splited;
+  }
+
+  splited = strtok(NULL, "/");
+  return splited;
+}
+
 void add_handler(View *view, char *method, HandlerFunc func) {
   Handler handler = {method, func};
   view->handlers[view->handlers_count++] = handler;
@@ -50,4 +63,23 @@ void hello_handler_func(Request *request) {
 Handler hello_handler = {
     "GET",
     hello_handler_func,
+};
+
+void cpu_bound_handler_func(Request *request) {
+  Response resp =
+      make_response(request->path, 200, request->method, request->sockfd);
+
+  char *response_string_tmpl = "<html>cpu-bound completed %s</html>";
+
+  char *d = parse_url_path(request->path);
+  printf("%s\n", d);
+
+  char data[BUFFER_SIZE];
+  render_string(resp, response_string_tmpl, data);
+  send_response(resp.sockfd, data);
+}
+
+Handler cpu_bound_handler = {
+    "GET",
+    cpu_bound_handler_func,
 };

@@ -47,4 +47,6 @@ void render_string(Response resp, const char *html_string, char *data);
 
 void send_response(int sockfd, const char *data);
 
+char *parse_url_path(char *path);
+
 #endif // !VIEWS_H
