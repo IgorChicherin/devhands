@@ -37,7 +37,7 @@ def hello_world():
     return "<h1>Hello, World!</h1>"
 
 
-@app.route("/python/cpu-workload/<cpu_usage:int>/<sleep:int>")
+@app.route("/python/cpu-workload/<int:cpu_usage>/<int:sleep>")
 def cpu_workload(cpu_usage, sleep):
     do_cpu_workload(cpu_usage_ms=cpu_usage, sleep_time_ms=sleep)
     return "<h1>Done</h1>"
