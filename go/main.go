@@ -81,8 +81,8 @@ func DoCpuWorkloadHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/hello-world", HelloWorldHandler)
-	http.HandleFunc("/cpu-workload/{cpuLoadMs}/{sleepTime}", DoCpuWorkloadHandler)
+	http.HandleFunc("/golang/hello-world", HelloWorldHandler)
+	http.HandleFunc("/golang/cpu-workload/{cpuLoadMs}/{sleepTime}", DoCpuWorkloadHandler)
 
 	err := http.ListenAndServe(":3002", nil)
 

@@ -3,7 +3,7 @@
 #include "views.c"
 
 int main() {
-  View hello_view = {"/hello", 0};
+  View hello_view = {"/c/hello-world", 0};
   add_handler(&hello_view, "GET", hello_handler_func);
 
   View cpu_bound_view = {"/cpu/%s/%s", 0};
@@ -14,6 +14,6 @@ int main() {
   register_view(&views, cpu_bound_view);
 
   Server server = server_constructor(AF_INET, SOCK_STREAM, IPPROTO_TCP,
-                                     INADDR_ANY, 8080, 1, serve, &views);
+                                     INADDR_ANY, 3004, 1, serve, &views);
   server.launch(&server);
 }
