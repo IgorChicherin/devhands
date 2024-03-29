@@ -29,7 +29,7 @@ def do_cpu_workload(sleep_time_ms: int, cpu_usage_ms: int):
     time.sleep(sleep_time)
 
 
-app = Flask(__name__)
+app = Flask("miniserver")
 
 
 @app.route("/python/hello-world")
@@ -44,4 +44,4 @@ def cpu_workload(cpu_usage, sleep):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=3003)
+    app.run()
