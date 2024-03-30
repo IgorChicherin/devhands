@@ -41,7 +41,3 @@ def hello_world():
 def cpu_workload(cpu_usage, sleep):
     do_cpu_workload(cpu_usage_ms=cpu_usage, sleep_time_ms=sleep)
     return "<h1>Done</h1>"
-
-
-if __name__ == "__main__":
-    app.run()
