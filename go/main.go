@@ -4,8 +4,8 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
-	"github.com/Ja7ad/forker"
 	"log"
+	"net"
 	"net/http"
 	"syscall"
 	"time"
@@ -84,15 +84,15 @@ func DoCpuWorkloadHandler(w http.ResponseWriter, req *http.Request) {
 func main() {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/golang/hello-world", HelloWorldHandler)
-	mux.HandleFunc("/golang/cpu-workload/{cpuLoadMs}/{sleepTime}", DoCpuWorkloadHandler)
+	mux.HandleFunc("/hello-world", HelloWorldHandler)
+	mux.HandleFunc("/cpu-workload/{cpuLoadMs}/{sleepTime}", DoCpuWorkloadHandler)
 
-	srv := &http.Server{Handler: mux}
+	l, err := net.Listen("unix", "/local/src/devhands/go/miniserver.sock")
+	if err != nil {
+		fmt.Printf("%s\n", err)
+	}
 
-	f := forker.New(srv)
-
-	err := f.ListenAndServe(":3002")
-
+	err = http.Serve(l, mux)
 	if err != nil {
 		log.Fatalf("Error: %s", err)
 	}
