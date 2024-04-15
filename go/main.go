@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"syscall"
 	"time"
@@ -81,11 +82,17 @@ func DoCpuWorkloadHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/hello-world", HelloWorldHandler)
-	http.HandleFunc("/cpu-workload/{cpuLoadMs}/{sleepTime}", DoCpuWorkloadHandler)
+	mux := http.NewServeMux()
 
-	err := http.ListenAndServe(":3002", nil)
+	mux.HandleFunc("/hello-world", HelloWorldHandler)
+	mux.HandleFunc("/cpu-workload/{cpuLoadMs}/{sleepTime}", DoCpuWorkloadHandler)
 
+	l, err := net.Listen("unix", "/local/src/devhands/go/miniserver.sock")
+	if err != nil {
+		fmt.Printf("%s\n", err)
+	}
+
+	err = http.Serve(l, mux)
 	if err != nil {
 		log.Fatalf("Error: %s", err)
 	}
