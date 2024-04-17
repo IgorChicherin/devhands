@@ -7,13 +7,10 @@
 
 #include "server.h"
 
-char buffer[BUFFER_SIZE];
-
 int setnonblocking(int sockfd) {
-	if (fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL, 0) | O_NONBLOCK) ==-1) {
-		return -1;
-	}
-	return 0;
+  int old_option = fcntl(sockfd, F_GETFL);
+  int new_option = old_option | O_NONBLOCK;
+  return fcntl(sockfd, F_SETFL, new_option);
 }
 
 void epoll_ctl_add(int epfd, int fd, uint32_t events) {
@@ -27,7 +24,7 @@ void epoll_ctl_add(int epfd, int fd, uint32_t events) {
 }
 
 Server server_constructor(int domain, int service, int protocol,
-                          u_long interface, int port, int backlog,
+                          __u_long interface, int port, int backlog,
                           void (*launch)(Server *server), ViewsList *views) {
   Server server;
 
@@ -69,14 +66,13 @@ Server server_constructor(int domain, int service, int protocol,
   }
 
   // Set sock non blocking
-
   if (setnonblocking(server.socket) == -1) {
     perror("Failed set socket non-blocking mode");
     exit(-1);
   }
 
   // Listen connections
-  res = listen(server.socket, server.backlog);
+  res = listen(server.socket, MAX_CONN);
 
   if (res < 0) {
     perror("Failed to listen to socket");
@@ -84,16 +80,14 @@ Server server_constructor(int domain, int service, int protocol,
   }
 
  // create epoll instance
-  server.epfd = epoll_create(5);
+  server.epfd = epoll_create1(0);
   if (server.epfd == -1) {
       perror("epoll_create");
   }
 
-  struct epoll_event ev;
-  memcpy(&ev.events, server.events, sizeof(server.events));
-	ev.data.fd = server.epfd;
+  epoll_ctl_add(server.epfd, server.socket, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLHUP);
 
-  epoll_ctl_add(server.epfd, server.socket, EPOLLIN | EPOLLOUT | EPOLLET);
+  server.events = (struct epoll_event *)malloc(sizeof(struct epoll_event) * MAX_EVENTS);
   server.launch = launch;
 
   memcpy(&server.views, views, sizeof(ViewsList));
@@ -104,64 +98,58 @@ void serve(Server *server) {
   
   for (;;) {
 
-    int count_fds = epoll_wait(server->epfd, server->events, MAX_EVENTS, -1);
+    int count_fds = epoll_wait(server->epfd, server->events, MAX_EVENTS, 0);
 
     for (int i = 0 ; i < count_fds; ++i) {
+      struct epoll_event event = server->events[i];
 
       // Handle connection
-      if (server->events[i].data.fd == server->socket) {
-          // Accept incoming connections
-          int host_len = sizeof(server->address);
-          int newsockfd = accept(server->socket, (struct sockaddr *)&server->address,
-                                (socklen_t *)&host_len);
-
-          if (newsockfd < 0) {
-            perror("webserver (accept)");
-            continue;
-          }
-
-          setnonblocking(newsockfd);
-          epoll_ctl_add(server->epfd, newsockfd, EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLHUP);
-      }
+      if (event.data.fd == server->socket) 
+        if (handle_conn(server) < 0) continue;
       
-      if (server->events[i].events & EPOLLIN) {
+      if (event.events & EPOLLIN) {
+        char buffer[BUFFER_SIZE];
+
         // Read from the socket
-        int valread = read(server->events[i].data.fd, buffer, BUFFER_SIZE);
-        if (valread < 0) {
-          continue;
-        }
+        int valread = read(event.data.fd, buffer, BUFFER_SIZE);
 
+        if (valread < 0) continue;
 
-        // Get client address
+        // Get client address3004w
         struct sockaddr_in client;
         int client_len = sizeof(client);
-        int sockn = getsockname(server->events[i].data.fd, (struct sockaddr *)&client,
+        int sockn = getsockname(event.data.fd, (struct sockaddr *)&client,
                                 (socklen_t *)&client_len);
 
         if (sockn < 0) {
           perror("webserver (getsockname)");
+          // free(buffer);
           continue;
         }
 
         // Read the request
         Request req;
-        req.sockfd = server->events[i].data.fd;
+        req.sockfd = event.data.fd;
 
-        char version[BUFFER_SIZE];
+         char version[BUFFER_SIZE];
+        
         sscanf(buffer, "%s %s %s", req.method, req.path, version);
 
         printf("%s:%u [%s] %s %s\n", inet_ntoa(client.sin_addr),
               ntohs(client.sin_port), req.method, version, req.path);
-
+        
+        // free(version);
         route_view(server, &req);
-    
+      
+        epoll_ctl(server->epfd, EPOLL_CTL_DEL, event.data.fd, NULL);
+				close(event.data.fd);
       }
 
       /* check if the connection is closing */
-			if (server->events[i].events & (EPOLLRDHUP | EPOLLHUP)) {
+			if (event.events & (EPOLLRDHUP | EPOLLHUP)) {
 				printf("[+] connection closed\n");
-				epoll_ctl(server->epfd, EPOLL_CTL_DEL, server->events[i].data.fd, NULL);
-				close(server->events[i].data.fd);
+				epoll_ctl(server->epfd, EPOLL_CTL_DEL, event.data.fd, NULL);
+				close(event.data.fd);
 				continue;
 			}
     }
@@ -199,4 +187,25 @@ void route_view(Server *server, Request *req) {
         perror("webserver (write)");
       }
     }
+}
+
+int handle_conn(Server *server) {
+  // Accept incoming connections
+  int host_len = sizeof(server->address);
+  int newsockfd = accept(server->socket, (struct sockaddr *)&server->address,
+                        (socklen_t *)&host_len);
+
+  if (newsockfd < 0) {
+    perror("webserver (accept)");
+    return -1;
+  }
+  
+  if (setnonblocking(newsockfd) == -1) {
+    perror("Failed set socket non-blocking mode");
+    exit(-1);
+  }
+
+  epoll_ctl_add(server->epfd, newsockfd, EPOLLIN | EPOLLET | EPOLLONESHOT);
+
+  return newsockfd;
 }

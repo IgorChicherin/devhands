@@ -15,5 +15,17 @@ int main() {
 
   Server server = server_constructor(AF_INET, SOCK_STREAM, IPPROTO_TCP,
                                      INADDR_ANY, 3004, 1, serve, &views);
+
   server.launch(&server);
+
+  // for (int i = 0; i < 8; ++i) {
+  //   int id = fork();
+  //   if (id != 0) {
+  //     server.launch(&server);
+  //   }
+  // }
+  
+
+  close(server.epfd);
+  close(server.socket);
 }
