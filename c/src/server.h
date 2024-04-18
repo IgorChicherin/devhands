@@ -15,12 +15,16 @@
 #define BUFFER_SIZE 1024
 #endif // !BUFFER_SIZE
 
+#ifndef CPU_CORES
+#define CPU_CORES 8
+#endif // !CPU_CORES
+
 #ifndef MAX_CONN
 #define MAX_CONN 512
 #endif // !MAX_CONN
 
 #ifndef MAX_EVENTS
-#define MAX_EVENTS 1024
+#define MAX_EVENTS 1024 * MAX_CONN 
 #endif // !MAX_EVENTS
 
 int setnonblocking(int sockfd);

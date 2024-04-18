@@ -85,7 +85,7 @@ Server server_constructor(int domain, int service, int protocol,
       perror("epoll_create");
   }
 
-  epoll_ctl_add(server.epfd, server.socket, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLHUP);
+  epoll_ctl_add(server.epfd, server.socket, EPOLLIN | EPOLLRDHUP | EPOLLHUP);
 
   server.events = (struct epoll_event *)malloc(sizeof(struct epoll_event) * MAX_EVENTS);
   server.launch = launch;
@@ -98,7 +98,7 @@ void serve(Server *server) {
   
   for (;;) {
 
-    int count_fds = epoll_wait(server->epfd, server->events, MAX_EVENTS, 0);
+    int count_fds = epoll_wait(server->epfd, server->events, MAX_EVENTS, -1);
 
     for (int i = 0 ; i < count_fds; ++i) {
       struct epoll_event event = server->events[i];
@@ -113,9 +113,14 @@ void serve(Server *server) {
         // Read from the socket
         int valread = read(event.data.fd, buffer, BUFFER_SIZE);
 
+        if (valread == 0) {
+          epoll_ctl(server->epfd, EPOLL_CTL_DEL, event.data.fd, NULL);
+          continue;
+        }
+
         if (valread < 0) continue;
 
-        // Get client address3004w
+        // Get client address
         struct sockaddr_in client;
         int client_len = sizeof(client);
         int sockn = getsockname(event.data.fd, (struct sockaddr *)&client,
@@ -140,9 +145,6 @@ void serve(Server *server) {
         
         // free(version);
         route_view(server, &req);
-      
-        epoll_ctl(server->epfd, EPOLL_CTL_DEL, event.data.fd, NULL);
-				close(event.data.fd);
       }
 
       /* check if the connection is closing */
@@ -205,7 +207,7 @@ int handle_conn(Server *server) {
     exit(-1);
   }
 
-  epoll_ctl_add(server->epfd, newsockfd, EPOLLIN | EPOLLET | EPOLLONESHOT);
+  epoll_ctl_add(server->epfd, newsockfd,  EPOLLIN | EPOLLRDHUP | EPOLLHUP);
 
   return newsockfd;
 }
